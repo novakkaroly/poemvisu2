@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="hu">
+  <head>
+    <meta charset="UTF--8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Magyar Vers Álomszövő</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Poppins', sans-serif;
+      }
+      .font-handwriting {
+        font-family: 'Caveat', cursive;
+      }
+      .line-clamp-4 {
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 4;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.22.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0"
+  }
+}
+</script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="text/babel" data-type="module">
+      import React, { useState, useEffect, useMemo } from 'react';
+      import ReactDOM from 'react-dom/client';
+      import { GoogleGenAI } from "@google/genai";
+
+      // --- From types.ts ---
+      // interface ArtCreation is used implicitly in components
+
+      // --- From components/icons.tsx ---
+      const SparklesIcon = ({ className }) => (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="m12 3-1.9 5.8-5.8 1.9 5.8 1.9L12 18l1.9-5.8 5.8-1.9-5.8-1.9L12 3z" />
+          <path d="M5 3v4" />
+          <path d="M19 17v4" />
+          <path d="M3 5h4" />
+          <path d="M17 19h4" />
+        </svg>
+      );
+
+      const HeartIcon = ({ className, isFilled }) => (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={isFilled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+        </svg>
+      );
+
+      const ShareIcon = ({ className }) => (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+          <polyline points="16 6 12 2 8 6" />
+          <line x1="12" x2="12" y1="2" y2="15" />
+        </svg>
+      );
+
+      const DownloadIcon = ({ className }) => (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" x2="12" y1="15" y2="3" />
+        </svg>
+      );
+
+      const TrashIcon = ({ className }) => (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M3 6h18" />
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+        </svg>
+      );
+
+      const LoaderIcon = ({ className }) => (
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`animate-spin ${className}`}>
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+          </svg>
+      );
+
+      // --- From hooks/useLocalStorage.ts ---
+      function useLocalStorage(key, initialValue) {
+        const [storedValue, setStoredValue] = useState(() => {
+          if (typeof window === 'undefined') {
+            return initialValue;
+          }
+          try {
+            const item = window.localStorage.getItem(key);
+            return item ? JSON.parse(item) : initialValue;
+          } catch (error) {
+            console.error(error);
+            return initialValue;
+          }
+        });
+
+        useEffect(() => {
+          try {
+            const valueToStore =
+              typeof storedValue === 'function'
+                ? storedValue(storedValue)
+                : storedValue;
+            window.localStorage.setItem(key, JSON.stringify(valueToStore));
+          } catch (error) {
+            console.error(error);
+          }
+        }, [key, storedValue]);
+
+        return [storedValue, setStoredValue];
+      }
+
+      // --- From services/geminiService.ts ---
+      const API_KEY = process.env.API_KEY;
+      if (!API_KEY) {
+        // A user-friendly message in the UI is better, but this will stop execution if the key is missing.
+        document.getElementById('root').innerHTML = '<div style="text-align: center; padding: 2rem; color: red; font-family: sans-serif;">Hiba: Az API kulcs nincs beállítva. Az alkalmazás nem tud elindulni.</div>';
+        throw new Error("API_KEY environment variable is not set.");
+      }
+
+      const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+      const styleLibrary = [
+        'szürrealizmus', 'impresszionizmus', 'expresszionizmus', 'kubizmus', 'szecesszió (Art Nouveau)',
+        'barokk festészet', 'romantika', 'posztimpresszionizmus', 'szimbolizmus', 'japán fametszet',
+        'art deco', 'pop art', 'minimalista', 'pszichedelikus művészet', 'akvarell festmény', 'tusrajz',
+        'szénrajz', 'képregény stílus', 'mesekönyv illusztráció', 'digitális festmény', 'fantasy művészet',
+        'concept art', 'gőzpunk (steampunk)', 'pixel art', 'ólomüveg ablak', 'naiv művészet', 'kollázs',
+        'csöpögtetéses festészet (drip painting)'
+      ];
+
+      async function generateImageFromPoem(poem) {
+        try {
+          const randomStyle = styleLibrary[Math.floor(Math.random() * styleLibrary.length)];
+          const prompt = `Alkoss egy szeszélyes, álomszerű képet, amelyet közvetlenül az alábbi magyar vers hangulata és képi világa ihletett. A kép stílusa legyen: ${randomStyle}. \n\n---\n\n${poem}`;
+          const response = await ai.models.generateImages({
+              model: 'imagen-4.0-generate-001',
+              prompt: prompt,
+              config: {
+                numberOfImages: 1,
+                outputMimeType: 'image/jpeg',
+                aspectRatio: '1:1',
+              },
+          });
+
+          if (response.generatedImages && response.generatedImages.length > 0) {
+            const base64ImageBytes = response.generatedImages[0].image.imageBytes;
+            return `data:image/jpeg;base64,${base64ImageBytes}`;
+          } else {
+            throw new Error("No image was generated.");
+          }
+        } catch (error) {
+          console.error("Error generating image with Gemini API:", error);
+          throw new Error("Nem sikerült létrehozni az álomképet. Kérlek, próbáld újra.");
+        }
+      }
+
+      // --- From components/Header.tsx ---
+      const Header = () => {
+        return (
+          <header className="text-center p-6 bg-purple-100/30 rounded-lg shadow-md mb-8">
+            <div className="flex items-center justify-center gap-4">
+              <SparklesIcon className="w-10 h-10 text-yellow-500" />
+              <h1 className="text-5xl font-handwriting text-purple-800">
+                Magyar Vers Álomszövő
+              </h1>
+              <SparklesIcon className="w-10 h-10 text-yellow-500" />
+            </div>
+            <p className="text-purple-600 mt-2">Versek átalakítása vizuális csodákká.</p>
+          </header>
+        );
+      };
+      
+      // --- From components/PoemInput.tsx ---
+      const PoemInput = ({ poem, setPoem, onGenerate, isLoading }) => {
+        return (
+          <div className="bg-white/60 p-6 rounded-xl shadow-lg backdrop-blur-sm border border-purple-200">
+            <label htmlFor="poem-input" className="block text-lg font-semibold text-purple-700 mb-2">
+              Írj be egy magyar verset
+            </label>
+            <textarea
+              id="poem-input"
+              value={poem}
+              onChange={(e) => setPoem(e.target.value)}
+              placeholder="pl. 'Föltámadott a tenger...'"
+              rows={8}
+              className="w-full p-4 border-2 border-mint-200 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-purple-400 transition-colors duration-300 resize-none bg-white/80"
+              disabled={isLoading}
+            />
+            <button
+              onClick={onGenerate}
+              disabled={isLoading || !poem.trim()}
+              className="mt-4 w-full flex items-center justify-center gap-3 bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 ease-in-out transform hover:scale-105 disabled:bg-purple-300 disabled:cursor-not-allowed disabled:scale-100 shadow-md"
+            >
+              {isLoading ? (
+                <>
+                  <LoaderIcon className="w-6 h-6" />
+                  Álmod szövése...
+                </>
+              ) : (
+                <>
+                  <SparklesIcon className="w-6 h-6" />
+                  Álomkép Létrehozása
+                </>
+              )}
+            </button>
+          </div>
+        );
+      };
+      
+      // --- From components/ImageDisplay.tsx ---
+      const ImageDisplay = ({ artCreation, isLoading, error, onSave, isFavorite }) => {
+        const [copied, setCopied] = useState(false);
+
+        if (isLoading) {
+          return (
+            <div className="w-full aspect-square bg-white/60 flex flex-col items-center justify-center rounded-xl shadow-lg backdrop-blur-sm border border-mint-200 text-purple-700">
+              <LoaderIcon className="w-16 h-16" />
+              <p className="mt-4 text-lg font-semibold">A mesterséges intelligencia megálmodja a képed...</p>
+              <p className="text-sm">Ez eltarthat egy pillanatig.</p>
+            </div>
+          );
+        }
+
+        if (error) {
+          return (
+            <div className="w-full aspect-square bg-red-100/60 flex flex-col items-center justify-center rounded-xl shadow-lg backdrop-blur-sm border border-red-300 text-red-700 p-4">
+              <h3 className="text-lg font-bold">Hiba történt</h3>
+              <p>{error}</p>
+            </div>
+          );
+        }
+
+        if (!artCreation || !artCreation.imageUrl) {
+          return (
+            <div className="w-full aspect-square bg-white/60 flex flex-col items-center justify-center rounded-xl shadow-lg backdrop-blur-sm border border-mint-200 text-purple-700">
+              <SparklesIcon className="w-16 h-16 text-yellow-400" />
+              <p className="mt-4 text-lg font-semibold">Az álomképed itt fog megjelenni</p>
+            </div>
+          );
+        }
+
+        const { imageUrl, poem } = artCreation;
+
+        const handleDownload = () => {
+          const link = document.createElement('a');
+          link.href = imageUrl;
+          link.download = 'alomkep.jpg';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        };
+        
+        const handleCopyPoem = () => {
+          navigator.clipboard.writeText(poem);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        };
+
+        return (
+          <div className="w-full bg-white/60 p-4 rounded-xl shadow-lg backdrop-blur-sm border border-yellow-200">
+            <div className="relative group">
+              <img src={imageUrl} alt="MI által generált művészet a versből" className="w-full h-full object-cover rounded-lg shadow-md" />
+              <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <button onClick={onSave} title="Mentés a kedvencek közé" className="bg-white/80 p-2 rounded-full shadow-lg hover:bg-purple-100 transition-colors">
+                  <HeartIcon className={`w-6 h-6 ${isFavorite ? 'text-red-500' : 'text-purple-600'}`} isFilled={isFavorite} />
+                </button>
+                <button onClick={handleDownload} title="Kép letöltése" className="bg-white/80 p-2 rounded-full shadow-lg hover:bg-purple-100 transition-colors">
+                  <DownloadIcon className="w-6 h-6 text-purple-600" />
+                </button>
+                 <button onClick={handleCopyPoem} title="Vers másolása" className="bg-white/80 p-2 rounded-full shadow-lg hover:bg-purple-100 transition-colors">
+                  <ShareIcon className="w-6 h-6 text-purple-600" />
+                </button>
+              </div>
+              {copied && <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-green-500 text-white px-3 py-1 rounded-full text-sm">Vers másolva!</div>}
+            </div>
+          </div>
+        );
+      };
+
+      // --- From components/FavoritesGallery.tsx ---
+      const FavoritesGallery = ({ favorites, onRemove }) => {
+        if (favorites.length === 0) {
+          return null;
+        }
+
+        return (
+          <div className="w-full mt-12">
+            <h2 className="text-3xl font-handwriting text-purple-800 text-center mb-6">
+              Álomgyűjteményed
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {favorites.map((fav) => (
+                <div key={fav.id} className="relative group bg-white/60 p-3 rounded-xl shadow-lg backdrop-blur-sm border border-purple-200">
+                  <img src={fav.imageUrl} alt="Kedvenc generált műalkotás" className="w-full aspect-square object-cover rounded-lg" />
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg p-4">
+                    <p className="text-white text-sm text-center line-clamp-4">
+                      {fav.poem}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => onRemove(fav.id)}
+                    className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-red-600 transform hover:scale-110"
+                    title="Eltávolítás a kedvencek közül"
+                  >
+                    <TrashIcon className="w-5 h-5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      };
+      
+      // --- From App.tsx ---
+      function App() {
+        const [poem, setPoem] = useState('');
+        const [currentImageUrl, setCurrentImageUrl] = useState(null);
+        const [isLoading, setIsLoading] = useState(false);
+        const [error, setError] = useState(null);
+        const [favorites, setFavorites] = useLocalStorage('poem-dreams', []);
+
+        const currentArtCreation = useMemo(() => {
+          if (!currentImageUrl) return null;
+          return { poem, imageUrl: currentImageUrl };
+        }, [poem, currentImageUrl]);
+        
+        const isCurrentFavorite = useMemo(() => {
+          if (!currentArtCreation) return false;
+          return favorites.some(fav => fav.imageUrl === currentArtCreation.imageUrl && fav.poem === currentArtCreation.poem);
+        }, [favorites, currentArtCreation]);
+
+        const handleGenerate = async () => {
+          if (!poem.trim()) return;
+          setIsLoading(true);
+          setError(null);
+          setCurrentImageUrl(null);
+          try {
+            const imageUrl = await generateImageFromPoem(poem);
+            setCurrentImageUrl(imageUrl);
+          } catch (e) {
+            if (e instanceof Error) {
+              setError(e.message);
+            } else {
+              setError("Ismeretlen hiba történt.");
+            }
+          } finally {
+            setIsLoading(false);
+          }
+        };
+
+        const handleSaveFavorite = () => {
+          if (!currentArtCreation || isCurrentFavorite) return;
+          const newFavorite = {
+            id: new Date().toISOString(),
+            ...currentArtCreation,
+          };
+          setFavorites(prev => [newFavorite, ...prev]);
+        };
+        
+        const handleRemoveFavorite = (id) => {
+          setFavorites(prev => prev.filter(fav => fav.id !== id));
+        };
+
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-purple-50 via-rose-50 to-green-50 text-slate-800">
+            <main className="container mx-auto px-4 py-8">
+              <Header />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto mt-8">
+                <PoemInput
+                  poem={poem}
+                  setPoem={setPoem}
+                  onGenerate={handleGenerate}
+                  isLoading={isLoading}
+                />
+                <ImageDisplay
+                  artCreation={currentArtCreation}
+                  isLoading={isLoading}
+                  error={error}
+                  onSave={handleSaveFavorite}
+                  isFavorite={isCurrentFavorite}
+                />
+              </div>
+              <FavoritesGallery favorites={favorites} onRemove={handleRemoveFavorite} />
+            </main>
+            <footer className="text-center py-4 text-purple-500 text-sm">
+              <p>Gemini hajtja. Szeszéllyel készült.</p>
+            </footer>
+          </div>
+        );
+      }
+      
+      // --- From index.tsx ---
+      const rootElement = document.getElementById('root');
+      if (!rootElement) {
+        throw new Error("Could not find root element to mount to");
+      }
+
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(
+        <React.StrictMode>
+          <App />
+        </React.StrictMode>
+      );
+    </script>
+  </body>
+</html>
